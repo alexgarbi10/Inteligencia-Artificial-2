@@ -1,13 +1,11 @@
-/*
- *@autor: Alejandro Garbi
- *@correo: alexgarbi10@gmail.com
- *@archivo: algorithms.cpp
- * Algoritmo Genetico
- */
-
+/* Headers y librerias */
 #include "algorithms.h"
 
 using namespace std;
+
+/*******************************************************************
+* Constructor
+********************************************************************/
 
 Classifier::Classifier(const char* filename) {
 	cout << "-----------------------------------" << endl;
@@ -102,23 +100,32 @@ Classifier::Classifier(const char* filename) {
 	cout << "Procesando datos..." << endl;
 	cout << "-----------------------------------" << endl;
 	size = ReadFile(filename);
-	cout << "Se cargaron " << dataSet.size() << " datos" << endl;
-	cout << "Conjunto de entrenamiento: " << trainingSet.size() << endl;
-	cout << " " << TRAINING_SIZE*100 << "%" << endl;
-	cout << "Conjunto de prueba: " << testSet.size() << endl;
-	cout << " " << TEST_SIZE*100 << "%" << endl;
-	cout << "Datos positivos (+): " << positives << endl;
-	cout << " " << (positives/(double) SIZE)*100 << "%" << endl;
-	cout << "Datos negativos (-): " << negatives << endl;
-	cout << " " << (negatives/(double) SIZE)*100 << "%" << endl;
+	cout << "Se cargaron " << positivesSet.size() + negativesSet.size() << " datos" << endl;
+	cout << "Datos positivos (+): " << positivesSet.size() << endl;
+	cout << " " << (positivesSet.size()/(double) SIZE)*100 << "%" << endl;
+	cout << "Datos negativos (-): " << negativesSet.size() << endl;
+	cout << " " << (negativesSet.size()/(double) SIZE)*100 << "%" << endl;
 	cout << "-----------------------------------" << endl;
 	cout << "Procesado finalizado" << endl;
 	cout << "-----------------------------------" << endl << endl;
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Destructor
+********************************************************************/
+
 Classifier::~Classifier() {}
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Preprocesamiento
+********************************************************************/
+
 void Classifier::Preprocessing(const char *filename) {
+	// Apertura del archivo
 	fstream inputFile;
 	inputFile.open(filename, ios::in);
 
@@ -160,6 +167,7 @@ void Classifier::Preprocessing(const char *filename) {
 		for (int i=0;i < 3; i++) frequencyA14[i] = 0;
 		for (int i=0;i < 3; i++) frequencyA15[i] = 0;
 
+		// Actualizacion de estadisticos
 		while (!inputFile.eof()) {
 			getline(inputFile, line);
 			if (line.length() > 2) UpdateStatistics(line);
@@ -173,9 +181,6 @@ void Classifier::Preprocessing(const char *filename) {
 		mean14 = mean14/(SIZE-13);
 		mean15 = mean15/SIZE;
 
-		cout << mean14;
-		cout << mean15;
-
 		inputFile.close();
 	}
 	else {
@@ -183,28 +188,25 @@ void Classifier::Preprocessing(const char *filename) {
 	}
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Procesamiento
+********************************************************************/
+
 int Classifier::ReadFile(const char *filename) {
+	// Apertura del archivo
 	fstream inputFile;
 	inputFile.open(filename, ios::in);
-	positives = 0;
-	negatives = 0;
 
 	if (inputFile.is_open()) {
 		string line = "";
 
+		// Procesamiento de datos
 		while (!inputFile.eof()) {
 			getline(inputFile, line);
 			if (line.length() > 2) ProcessLine(line);
 		}
-
-		random_shuffle(dataSet.begin(),dataSet.end());
-
-		int training = (int) ceil(TRAINING_SIZE*dataSet.size());
-		int test = (int) ceil(TEST_SIZE*dataSet.size());
-
-		for (int i=0; i< training; i++) trainingSet.push_back(dataSet[i]);
-
-		for (int i=0; i< test; i++) testSet.push_back(dataSet[i]);
 
 		inputFile.close();
 		return dataSet.size();
@@ -215,49 +217,67 @@ int Classifier::ReadFile(const char *filename) {
 	}
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Algoritmo Genetico
+********************************************************************/
+
 void Classifier::GA() {
+	Chromosome child1;
+	Chromosome child2;
 	double total;
 	double result;
 	double sum = 0.0;
 	int count = 0;
-	int mutated = 0;
 	int crossed = 0;
-	int index;
-	double selectionSize = (1.0 - CROSSOVER_RATE)*POPULATION;
 	double crossoverSize = CROSSOVER_RATE*POPULATION;
-	double mutationSize = MUTATION_RATE*POPULATION;
-	Chromosome child1;
-	Chromosome child2;
-	vector<Chromosome> children;
+	int trainingSizePlus = (int) floor(TRAINING_SIZE*positivesSet.size());
+	int testSizePlus = (int) ceil(TEST_SIZE*positivesSet.size());
+	int trainingSizeMinus = (int) floor(TRAINING_SIZE*negativesSet.size());
+	int testSizeMinus = (int) ceil(TEST_SIZE*negativesSet.size());
 
 	cout << "-----------------------------------" << endl;
 	cout << "-----------------------------------" << endl;
 	cout << "       ALGORITMO GENETICO          " << endl;
 	cout << "-----------------------------------" << endl;
 
-	accuracy = -1;
+	accuracy = -1.0;
 	best = -1;
-	mutated = 0;
+
+	// Mezcla de conjuntos de datos
+	random_shuffle(dataSet.begin(),dataSet.end());
+	random_shuffle(positivesSet.begin(),positivesSet.end());
+	random_shuffle(negativesSet.begin(),negativesSet.end());
+
+	// Separacion de conjuntos (entrenamiento y prueba)
+	for (int i=0; i < trainingSizePlus; i++) trainingSet.push_back(positivesSet[i]);
+	for (int i=0; i < testSizePlus; i++) testSet.push_back(positivesSet[i+trainingSizePlus]);
+	for (int i=0; i < trainingSizeMinus; i++) trainingSet.push_back(negativesSet[i]);
+	for (int i=0; i < testSizeMinus; i++) testSet.push_back(negativesSet[i+trainingSizeMinus]);
+
+	// Mezcla de conjuntos de entrenamiento y prueba
+	random_shuffle(trainingSet.begin(),trainingSet.end());
+	random_shuffle(testSet.begin(),testSet.end());
 
 	// Inicializacion de la poblacion
-	for (int i=0; i< POPULATION; i++) {
-		int genes = (rand()%2)+1;
+	for (int i=0; i < POPULATION; i++) {
 		double probAA = (rand()%100)/100.00;
 		double probDC = (rand()%100)/100.00;
-		double probMutation = (rand()%100)/100.00;
 
-		hypothesis[i] = RandomCreate(genes);
+		hypothesis[i] = RandomCreate(RULE_SIZE);
 		total = Fitness(hypothesis[i], trainingSet);
+
+		if (total == 0.0) {
+//			int genes = (rand()%10)+2;
+			hypothesis[i] = RandomCreate(RULE_SIZE);
+			total = Fitness(hypothesis[i], trainingSet);
+		}
+
 		result = (total/(double) trainingSet.size())*100;
 		hypothesis[i].fitness = pow(total,2);
 		hypothesis[i].survives = false;
 		sum += hypothesis[i].fitness;
-
-		if (probMutation <= MUTATION_RATE) {
-			hypothesis[i].mutate = true;
-			mutated++;
-		}
-		else hypothesis[i].mutate = false;
 
 		if (probAA <= AA_RATE) hypothesis[i].aa = true;
 		else hypothesis[i].aa = false;
@@ -265,38 +285,200 @@ void Classifier::GA() {
 		if (probDC <= DC_RATE) hypothesis[i].dc = true;
 		else hypothesis[i].dc = false;
 
-		if (result > accuracy) {
+		if (result >= accuracy) {
 			best = i;
 			accuracy = result;
 			maxScore = total;
 		}
 	}
 
-	index = 0;
-
-	while (mutated < mutationSize) {
-		int prob = rand()%100;
-
-		if (index >= POPULATION) index = 0;
-
-		if (prob <= RANDOM_RATE) {
-			hypothesis[index].mutate = true;
-			mutated++;
-		}
-
-		index++;
-	}
-
 	cout << "Población inicial generada" << endl;
-	cout << " " << POPULATION << " individuos aleatorios" << endl;
-	cout << " Precisión del mejor cromosoma: " << accuracy << "%" << endl;
+	cout << POPULATION << " individuos aleatorios" << endl;
+	cout << "Clasificación: " << maxScore << "/" << (double) trainingSet.size() << endl;
+	cout << "Precisión del mejor cromosoma: " << accuracy << "%" << endl;
 	cout << "Realizando proceso evolutivo..." << endl;
 
-	/*
+	// Condicion de parada (generaciones)
+	while (count < GENERATIONS) {
+		cout << count << endl;
+		// Elitismo
+//		int survivors = 1;
+		crossed = 0;
+		hypothesis[best].survives = true;
+		hypothesis[best].aa = false;
+		hypothesis[best].dc = false;
+
+		// CrossOver
+		while (crossed < crossoverSize) {
+			int first = -1;
+			int second = -1;
+
+			for (int i=0; i < 2; i++) {
+				///*
+				// Seleccion por rueda de la ruleta
+				double chance = 0.0;
+				double portion = 0.0;
+				int index = 0;
+
+				if (sum > 0.0) {
+					double limit = (rand()%(int) sum)/sum;
+
+					while (chance < limit) {
+						if (index >= POPULATION) index = 0;
+						portion = hypothesis[index].fitness/sum;
+						if (portion <= 0.1) portion = 0.1;
+						chance += portion;
+						if (chance >= limit && i == 0) first = index;
+						if (chance >= limit && i == 1) second = index;
+						index++;
+					}
+				}
+				else {
+					first = rand()%POPULATION;
+					second = rand()%POPULATION;
+				}
+				/*
+				// Seleccion por torneo
+				double max = -1.0;
+				int times = (rand()%TOURNAMENT_SIZE)+2;
+
+				for (int k=0; k < times; k++) {
+					int option = rand()%POPULATION;
+
+					if (hypothesis[option].fitness > max && i == 0) first = option;
+					if (hypothesis[option].fitness > max && i == 1) second = option;
+				}
+				*/
+			}
+
+			while (first == second) second = rand()%POPULATION;
+
+			child1 = hypothesis[first];
+			child2 = hypothesis[second];
+
+			children = CrossOver(child1, child2);
+
+			// Control sobre el numero de reglas
+			int rules1 = children[0].rule.size()/GENE_SIZE;
+
+			//if (rules1 > RULE_THRESHOLD) children[0] = RandomCreate(RULE_SIZE);
+
+			int rules2 = children[1].rule.size()/GENE_SIZE;
+			crossed += 2;
+
+			//if (rules2 > RULE_THRESHOLD) children[1] = RandomCreate(RULE_SIZE);
+
+			// Mutacion
+			double probMutation1 = (rand()%100)/100.00;
+			double probMutation2 = (rand()%100)/100.00;
+
+			if (probMutation1 <= MUTATION_RATE) children[0] = Mutate(children[0]);
+
+			if (probMutation2 <= MUTATION_RATE) children[1] = Mutate(children[1]);
+
+			// Add Alternative
+			if (hypothesis[first].aa) children[0] = AddAlternative(children[0]);
+			if (hypothesis[second].aa) children[1] = AddAlternative(children[1]);
+
+			// Drop Condition
+			if (hypothesis[first].dc) children[0] = DropCondition(children[0]);
+			if (hypothesis[second].dc) children[1] = DropCondition(children[1]);
+
+			// Reemplazo directo de padres
+			if (!hypothesis[first].survives) hypothesis[first] = children[0];
+			if (!hypothesis[second].survives) hypothesis[second] = children[1];
+
+			// Reemplazo de peores
+		}
+
+		// Evaluacion
+		sum = 0.0;
+
+		for (int i=0; i< POPULATION; i++) {
+			double probAA = (rand()%100)/100.00;
+			double probDC = (rand()%100)/100.00;
+
+			total = Fitness(hypothesis[i], trainingSet);
+
+			if (total == 0.0) {
+				//int genes = (rand()%10)+2;
+				hypothesis[i] = RandomCreate(RULE_SIZE);
+				total = Fitness(hypothesis[i], trainingSet);
+			}
+
+			result = (total/(double) trainingSet.size())*100;
+			hypothesis[i].fitness = pow(total,2);
+
+			if (probAA <= AA_RATE) hypothesis[i].aa = true;
+			else hypothesis[i].aa = false;
+
+			if (probDC <= DC_RATE) hypothesis[i].dc = true;
+			else hypothesis[i].dc = false;
+
+			hypothesis[i].survives = false;
+			sum += hypothesis[i].fitness;
+
+			if (result >= accuracy) {
+				best = i;
+				accuracy = result;
+				maxScore = total;
+			}
+		}
+
+		/*
+		cout << "ITERACION " << count << endl;
+		for (int i=0; i< POPULATION; i++) {
+		cout << "Cromosoma: " << i << endl;
+		for (int j=0; j < hypothesis[i].rule.size(); j++) {
+			cout << hypothesis[i].rule[j] << ", ";
+		}
+
+		cout << endl;
+		cout << hypothesis[i].rule.size() << " ";
+		cout << hypothesis[i].fitness << " ";
+		cout << endl;
+		}*/
+
+		count++;
+	}
+
+	accuracy = -1.0;
+	best = -1;
+
+	for (int i=0; i< POPULATION; i++) {
+		total = Fitness(hypothesis[i], testSet);
+		result = (total/(double) testSet.size())*100;
+		hypothesis[i].fitness = pow(total,2);
+
+		if (result >= accuracy) {
+			best = i;
+			accuracy = result;
+			maxScore = total;
+		}
+	}
+
+	rules = hypothesis[best].rule.size()/GENE_SIZE;
+
+/*
+	int i = best;
+	cout << "Cromosoma BEST: " << i << endl;
+
+	for (int j=0; j < hypothesis[i].rule.size(); j++) {
+		int gen = j%GENE_SIZE;
+		cout << hypothesis[i].rule[j] << ", ";
+	}
+
+	cout << endl;
+	cout << hypothesis[i].rule.size() << " ";
+	cout << hypothesis[i].fitness << " ";
+	cout << endl;
+
 	for (int i=0; i< POPULATION; i++) {
 	cout << "Cromosoma: " << i << endl;
 	for (int j=0; j < hypothesis[i].rule.size(); j++) {
+		int gen = j%(GENE_SIZE-1);
 		cout << hypothesis[i].rule[j] << ", ";
+				if (j == 58) cout << "ASJAHS::";
 	}
 
 	cout << endl;
@@ -306,543 +488,338 @@ void Classifier::GA() {
 	}
 	*/
 
-	// Condicion de parada (generaciones || precision)
-	while (accuracy < THRESHOLD && count < GENERATIONS) {
-		// Elitismo
-		int survivors = 1;
-		crossed = 0;
-		hypothesis[best].survives = true;
-		hypothesis[best].mutate = false;
-		hypothesis[best].aa = false;
-		hypothesis[best].dc = false;
-
-		// Seleccion de proxima generacion
-		while (survivors < selectionSize) {
-			// Torneo
-			int option1 = rand()%POPULATION;
-			int option2 = rand()%POPULATION;
-			int max;
-			int min;
-
-			while (hypothesis[option1].survives) option1 = rand()%POPULATION;
-			while (hypothesis[option2].survives || option1 == option2) option2 = rand()%POPULATION;
-
-
-			if (hypothesis[option1].fitness > hypothesis[option2].fitness) {
-				max = option1;
-				min = option2;
-			}
-			else {
-				max = option2;
-				min = option1;
-			}
-
-			double chance = rand()%100;
-
-			if (chance > TOURNAMENT_RATE) hypothesis[max].survives = true;
-			else hypothesis[min].survives = true;
-
-			/*
-			// Rueda de la ruleta
-			double chance = 0.0;
-			double limit = (double) (rand()%(int) sum);
-			index = 0;
-			int option = -1;
-
-			while (chance < limit) {
-				if (index >= POPULATION) index = 0;
-				if (!hypothesis[index].survives) chance += hypothesis[index].fitness/sum;
-				if (chance >= limit) option = index;
-				index++;
-			}
-
-			hypothesis[option].survives = true;
-			*/
-
-			survivors++;
-		}
-
-		// CrossOver
-		while (crossed < crossoverSize) {
-			// Torneo
-			for (int k=0; k<2; k++) {
-				int option1 = rand()%POPULATION;
-				int option2 = rand()%POPULATION;
-				int max;
-				int min;
-
-				while (hypothesis[option1].survives) option1 = rand()%POPULATION;
-				while (hypothesis[option2].survives || option1 == option2) option2 = rand()%POPULATION;
-
-
-				if (hypothesis[option1].fitness > hypothesis[option2].fitness) {
-					max = option1;
-					min = option2;
-				}
-				else {
-					max = option2;
-					min = option1;
-				}
-
-				double chance = rand()%100;
-
-				if (chance > TOURNAMENT_RATE) {
-					if (k == 0) child1 = hypothesis[max];
-					if (k == 1) child2 = hypothesis[max];
-				}
-				else {
-					if (k == 0) child1 = hypothesis[min];
-					if (k == 1) child2 = hypothesis[min];
-				}
-			}
-
-			/*
-			// Rueda de la ruleta
-			double chance = 0.0;
-			double limit = (double) (rand()%(int) sum);
-			index = 0;
-			int option = -1;
-
-			while (chance < limit) {
-				if (index >= POPULATION) index = 0;
-				if (!hypothesis[index].survives) chance += hypothesis[index].fitness/sum;
-				if (chance >= limit) option = index;
-				index++;
-			}
-
-			hypothesis[option].survives = true;
-			*/
-
-
-
-			crossed += 2;
-		}
-
-
-		// Evaluacion
-		sum = 0.0;
-		mutated = 0;
-
-		for (int i=0; i< POPULATION; i++) {
-			// Add Alternative
-			if (hypothesis[i].aa) hypothesis[i] = AddAlternative(hypothesis[i]);
-
-			// Drop Condition
-			if (hypothesis[i].dc) hypothesis[i] = DropCondition(hypothesis[i]);
-
-			// Mutacion
-			if (hypothesis[i].mutate) hypothesis[i] = Mutate(hypothesis[i]);
-
-			double probAA = (rand()%100)/100.00;
-			double probDC = (rand()%100)/100.00;
-			double probMutation = (rand()%100)/100.00;
-
-			total = Fitness(hypothesis[i], trainingSet);
-			result = (total/(double) trainingSet.size())*100;
-			hypothesis[i].fitness = pow(total,2);
-			hypothesis[i].survives = false;
-			sum += hypothesis[i].fitness;
-
-			if (probMutation <= MUTATION_RATE) {
-				hypothesis[i].mutate = true;
-				mutated++;
-			}
-			else hypothesis[i].mutate = false;
-
-			if (probAA <= AA_RATE) hypothesis[i].aa = true;
-			else hypothesis[i].aa = false;
-
-			if (probDC <= DC_RATE) hypothesis[i].dc = true;
-			else hypothesis[i].dc = false;
-
-			if (result > accuracy) {
-				best = i;
-				accuracy = result;
-				maxScore = total;
-			}
-		}
-
-		index = 0;
-
-		while (mutated < mutationSize) {
-			int prob = rand()%100;
-
-			if (index >= POPULATION) index = 0;
-
-			if (prob <= RANDOM_RATE) {
-				hypothesis[index].mutate = true;
-				mutated++;
-			}
-
-			index++;
-		}
-
-		count++;
-	}
-
-	maxScore = Fitness(hypothesis[best], testSet);
-	accuracy = (maxScore/(double) testSet.size())*100;
-
 	cout << "Proceso evolutivo finalizado" << endl;
-	cout << " Generaciones: " << GENERATIONS << endl;
+	cout << "Generaciones: " << GENERATIONS << endl;
+	cout << "Conjunto de entrenamiento: " << trainingSet.size() << endl;
+	cout << " " << TRAINING_SIZE*100 << "%" << endl;
+	cout << "Conjunto de prueba: " << testSet.size() << endl;
+	cout << " " << TEST_SIZE*100 << "%" << endl;
 	cout << "-----------------------------------" << endl;
-	cout << " Precisión de la validación: " << accuracy << "%" << endl;
-	cout << " Clasificados correctamente: " << maxScore << "/" << (int) testSet.size() << endl;
+	cout << " Clasificación: " << maxScore << "/" << (double) testSet.size() << endl;
+	cout << " Precisión: " << (maxScore/(double) testSet.size())*100 << "%" << endl;
+	cout << " Número de reglas del cromosoma: " << rules << endl;
 	cout << "-----------------------------------" << endl;
 	cout << "Algoritmo finalizado" << endl;
 	cout << "-----------------------------------" << endl;
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Funcion de Evaluacion de Cromosomas
+********************************************************************/
+
 double Classifier::Fitness(Chromosome individual, vector<Chromosome> set) {
 	double total = 0.0;
+	bool correct;
+	int size = individual.rule.size()/GENE_SIZE;
 
+	// Evaluacion de reglas por elementos del conjunto
 	for (int k=0; k < (int) set.size(); k++) {
-		bool correct;
-		int size = individual.rule.size();
 		int genes = 0;
 
 		while (genes < size) {
-			int i = 0;
-			bool a1 = false;
-			bool a2 = false;
-			bool a3 = false;
-			bool a4 = false;
-			bool a5 = false;
-			bool a6 = false;
-			bool a7 = false;
-			bool a8 = false;
-			bool a9 = false;
-			bool a10 = false;
-			bool a11 = false;
-			bool a12 = false;
-			bool a13 = false;
-			bool a14 = false;
-			bool a15 = false;
-			bool result = false;
+			bool valid = false;
 
-			while (i < (ATTRIBUTES + 1)) {
-				if (i < ATTRIBUTES) {
-					if (i == 0) {
-						bool dontCare = true;
-
-						for (int j=0; j < 2; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a1 = true;
-						}
-						else {
-							for (int j=0; j < 2; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a1 = true;
-							}
-						}
-
-						if (!a1) i = ATTRIBUTES + 1;
-					}
-
-					// A2: Continuo
-					if (i == 1) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a2 = true;
-						}
-						else {
-							for (int j=2; j < 5; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a2 = true;
-							}
-						}
-
-						if (!a2) i = ATTRIBUTES + 1;
-					}
-
-					// A3: Continuo
-					if (i == 2) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a3 = true;
-						}
-						else {
-							for (int j=5; j < 8; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a3 = true;
-							}
-						}
-
-						if (!a3) i = ATTRIBUTES + 1;
-					}
-
-					// A4: u, y, l, t
-					if (i == 3) {
-						bool dontCare = true;
-
-						for (int j=0; j < 4; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a4 = true;
-						}
-						else {
-							for (int j=8; j < 12; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a4 = true;
-							}
-						}
-
-						if (!a4) i = ATTRIBUTES + 1;
-					}
-
-					// A5: g, p, gg
-					if (i == 4) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a5 = true;
-						}
-						else {
-							for (int j=12; j < 15; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a5 = true;
-							}
-						}
-
-						if (!a5) i = ATTRIBUTES + 1;
-					}
-
-					// A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
-					if (i == 5) {
-						bool dontCare = true;
-
-						for (int j=0; j < 14; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a6 = true;
-						}
-						else {
-							for (int j=15; j < 29; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a6 = true;
-							}
-						}
-
-						if (!a6) i = ATTRIBUTES + 1;
-					}
-
-					// A7: v, h, bb, j, n, z, dd, ff, o
-					if (i == 6) {
-						bool dontCare = true;
-
-						for (int j=0; j < 9; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a7 = true;
-						}
-						else {
-							for (int j=29; j < 38; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a7 = true;
-							}
-						}
-
-						if (!a7) i = ATTRIBUTES + 1;
-					}
-
-					// A8: Continuo
-					if (i == 7) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a8 = true;
-						}
-						else {
-							for (int j=38; j < 41; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a8 = true;
-							}
-						}
-
-						if (!a8) i = ATTRIBUTES + 1;
-					}
-
-					// A9: t, f
-					if (i == 8) {
-						bool dontCare = true;
-
-						for (int j=0; j < 2; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a9 = true;
-						}
-						else {
-							for (int j=41; j < 43; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a9 = true;
-							}
-						}
-
-						if (!a9) i = ATTRIBUTES + 1;
-					}
-
-					// A10: t, f
-					if (i == 9) {
-						bool dontCare = true;
-
-						for (int j=0; j < 2; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a10 = true;
-						}
-						else {
-							for (int j=43; j < 45; j++) {
-								if ((individual.rule[i+genes] == 1) && (set[k].rule[i] == 1)) a10 = true;
-							}
-						}
-
-						if (!a10) i = ATTRIBUTES + 1;
-					}
-
-					// A11: Continuo
-					if (i == 10) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a11 = true;
-						}
-						else {
-							for (int j=45; j < 48; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a11 = true;
-							}
-						}
-
-						if (!a11) i = ATTRIBUTES + 1;
-					}
-
-					// A12: t, f
-					if (i == 11) {
-						bool dontCare = true;
-
-						for (int j=0; j < 2; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a12 = true;
-						}
-						else {
-							for (int j=48; j < 50; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a12 = true;
-							}
-						}
-
-						if (!a12) i = ATTRIBUTES + 1;
-					}
-
-					// A13: g, p, s
-					if (i == 12) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a13 = true;
-						}
-						else {
-							for (int j=50; j < 53; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a13 = true;
-							}
-						}
-
-						if (!a13) i = ATTRIBUTES + 1;
-					}
-
-					// A14: Continuo
-					if (i == 13) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a14 = true;
-						}
-						else {
-							for (int j=53; j < 56; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a14 = true;
-							}
-						}
-
-						if (!a14) i = ATTRIBUTES + 1;
-					}
-
-					// A15: Continuo
-					if (i == 14) {
-						bool dontCare = true;
-
-						for (int j=0; j < 3; j++) {
-							if (individual.rule[j+genes] == 0) dontCare = false;
-						}
-
-						if (dontCare) {
-							a15 = true;
-						}
-						else {
-							for (int j=56; j < 59; j++) {
-								if ((individual.rule[j+genes] == 1) && (set[k].rule[j] == 1)) a15 = true;
-							}
-						}
-
-						if (!a15) i = ATTRIBUTES + 1;
-					}
-				}
-				else {
-					if ((individual.rule[59+genes] == 1) && (set[k].rule[59] == 1)) result = true;
-					if ((individual.rule[59+genes] == 0) && (set[k].rule[59] == 0)) result = true;
-				}
-
-				i++;
+			for (int m=0; m < GENE_SIZE-1; m++) {
+				if (individual.rule[m+genes*GENE_SIZE] == 0) valid = true;
 			}
 
-			correct = a1 && a2 && a3 && a4 && a5 && a6 && a7 && a8 && a9
-					&& a10 && a11 && a12 && a13 && a14 && a15 && result;
+			if (valid) {
+				int i = 0;
+				bool a1 = false;
+				bool a2 = false;
+				bool a3 = false;
+				bool a4 = false;
+				bool a5 = false;
+				bool a6 = false;
+				bool a7 = false;
+				bool a8 = false;
+				bool a9 = false;
+				bool a10 = false;
+				bool a11 = false;
+				bool a12 = false;
+				bool a13 = false;
+				bool a14 = false;
+				bool a15 = false;
+				bool result = false;
 
-			if (correct) genes += GENE_SIZE;
-			else genes = size;
+				while (i < ATTRIBUTES + 1) {
+				  if (i == 0) {
+				    bool dontCare = true;
+
+				    for (int j=0; j < 2; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+				    if (dontCare) a1 = true;
+				    else {
+				      for (int j=0; j < 2; j++)
+								if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a1 = true;
+				    }
+
+				    if (!a1) i = ATTRIBUTES + 1;
+				  }
+
+			    // A2: Continuo
+			    if (i == 1) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a2 = true;
+			      else {
+			        for (int j=2; j < 5; j++)
+								if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a2 = true;
+			      }
+
+			      if (!a2) i = ATTRIBUTES + 1;
+			    }
+
+			    // A3: Continuo
+			    if (i == 2) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a3 = true;
+			      else {
+			        for (int j=5; j < 8; j++)
+								if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a3 = true;
+			      }
+
+			      if (!a3) i = ATTRIBUTES + 1;
+			    }
+
+			    // A4: u, y, l, t
+			    if (i == 3) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++) if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a4 = true;
+			      else {
+			        for (int j=8; j < 11; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a4 = true;
+			      }
+
+			      if (!a4) i = ATTRIBUTES + 1;
+			    }
+
+			    // A5: g, p, gg
+			    if (i == 4) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a5 = true;
+			      else {
+			        for (int j=11; j < 14; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a5 = true;
+			      }
+
+			      if (!a5) i = ATTRIBUTES + 1;
+			    }
+
+			    // A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
+			    if (i == 5) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 14; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a6 = true;
+			      else {
+			        for (int j=14; j < 28; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a6 = true;
+			      }
+
+			      if (!a6) i = ATTRIBUTES + 1;
+			    }
+
+			    // A7: v, h, bb, j, n, z, dd, ff, o
+			    if (i == 6) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 9; j++)
+							if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a7 = true;
+			      else {
+			        for (int j=28; j < 37; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a7 = true;
+			      }
+
+			      if (!a7) i = ATTRIBUTES + 1;
+			    }
+
+			    // A8: Continuo
+			    if (i == 7) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a8 = true;
+			      else {
+			        for (int j=37; j < 40; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a8 = true;
+			      }
+
+			      if (!a8) i = ATTRIBUTES + 1;
+			    }
+
+			    // A9: t, f
+			    if (i == 8) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 2; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a9 = true;
+			      else {
+			        for (int j=40; j < 42; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a9 = true;
+			      }
+
+			      if (!a9) i = ATTRIBUTES + 1;
+			    }
+
+			    // A10: t, f
+			    if (i == 9) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 2; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a10 = true;
+			      else {
+			        for (int j=42; j < 44; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a10 = true;
+			      }
+
+			      if (!a10) i = ATTRIBUTES + 1;
+			    }
+
+			    // A11: Continuo
+			    if (i == 10) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a11 = true;
+			      else {
+			        for (int j=44; j < 47; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a11 = true;
+			      }
+
+			      if (!a11) i = ATTRIBUTES + 1;
+			    }
+
+			    // A12: t, f
+			    if (i == 11) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 2; j++)
+			        if (individual.rule[j+genes] == 0) dontCare = false;
+
+			      if (dontCare) a12 = true;
+			      else {
+			        for (int j=47; j < 49; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a12 = true;
+			      }
+
+			      if (!a12) i = ATTRIBUTES + 1;
+			    }
+
+			    // A13: g, p, s
+			    if (i == 12) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a13 = true;
+			      else {
+			        for (int j=49; j < 52; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a13 = true;
+			      }
+
+			      if (!a13) i = ATTRIBUTES + 1;
+			    }
+
+			    // A14: Continuo
+			    if (i == 13) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++)
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+
+			      if (dontCare) a14 = true;
+			      else {
+			        for (int j=52; j < 55; j++)
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a14 = true;
+			      }
+
+			      if (!a14) i = ATTRIBUTES + 1;
+			    }
+
+			    // A15: Continuo
+			    if (i == 14) {
+			      bool dontCare = true;
+
+			      for (int j=0; j < 3; j++) {
+			        if (individual.rule[j+genes*GENE_SIZE] == 0) dontCare = false;
+			      }
+
+			      if (dontCare) a15 = true;
+			      else {
+			        for (int j=55; j < 58; j++) {
+			          if ((individual.rule[j+genes*GENE_SIZE] == 1) && (set[k].rule[j] == 1)) a15 = true;
+			        }
+			      }
+
+			      if (!a15) i = ATTRIBUTES + 1;
+			    }
+
+					// A16: Clase
+				  else {
+				    if ((individual.rule[58+genes*GENE_SIZE] == 1) && (set[k].rule[58] == 1)) result = true;
+				    if ((individual.rule[58+genes*GENE_SIZE] == 0) && (set[k].rule[58] == 0)) result = true;
+				  }
+
+				  i++;
+				}
+
+				// Condicionales IF-THEN
+				correct = a1 && a2 && a3 && a4 && a5 && a6 && a7 && a8 && a9
+				    && a10 && a11 && a12 && a13 && a14 && a15 && result;
+
+				if (correct) {
+				  total++;
+				  genes = size;
+				}
+				else genes++;
+			}
+			else {
+				genes++;
+			}
 		}
-
-		if (correct) total++;
 	}
 
-	if (total == 0.0) total = 1.0;
+	if (total < 0.0) total = 0.0;
 
 	return total;
 }
+
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Operador de Cruce para Cromosomas
+********************************************************************/
 
 vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2) {
 	vector<Chromosome> children;
@@ -862,13 +839,14 @@ vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2)
 	int x;
 	int y;
 
+	// Calculo de puntos p1 y p2
 	if (father1.rule.size() > father2.rule.size()) {
 		point1 = rand()%father2.rule.size();
 		point2 = rand()%father2.rule.size();
 
 		while (point1 == point2) point2 = rand()%father2.rule.size();
 
-		genes = father2.rule.size()/GENE_SIZE;
+		genes = father1.rule.size()/GENE_SIZE;
 	}
 	else {
 		point1 = rand()%father1.rule.size();
@@ -902,6 +880,7 @@ vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2)
 		count++;
 	}
 
+	// Calculo de distancias 1 y 2
 	distance1 = point1 - count*GENE_SIZE;
 
 	count = -1;
@@ -913,22 +892,36 @@ vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2)
 
 	distance2 = point2 - count*GENE_SIZE;
 
+	// Calculo de puntos p3 y p4
 	point3 = gen1*GENE_SIZE+distance1;
 	point4 = gen2*GENE_SIZE+distance2;
 
-	if (gen1 == 0 && gen2 == 0 && point3 > point4) {
-		aux = point3;
-		point3 = point4;
-		point4 = aux;
+	if (gen1 == gen2 && gen1 == 0 && point3 > point4) point4 += GENE_SIZE;
+	else if (gen1 == gen2 && gen1 > 0 && point3 > point4) point3 -= GENE_SIZE;
+
+	// Generacion de hijos
+	if (father1.rule.size() > father2.rule.size()) {
+		for (int i=0; i < point1; ++i) child1.rule.push_back(father2.rule[i]);
+		for (int i=point3; i < point4; ++i) child1.rule.push_back(father1.rule[i]);
+		for (int i=point2; i < (int) father2.rule.size(); ++i) child1.rule.push_back(father2.rule[i]);
+
+		for (int i=0; i < point3; ++i) child2.rule.push_back(father1.rule[i]);
+		for (int i=point1; i < point2; ++i) child2.rule.push_back(father2.rule[i]);
+		for (int i=point4; i < (int) father1.rule.size(); ++i) child2.rule.push_back(father1.rule[i]);
+	}
+	else {
+		for (int i=0; i < point1; ++i) child1.rule.push_back(father1.rule[i]);
+		for (int i=point3; i < point4; ++i) child1.rule.push_back(father2.rule[i]);
+		for (int i=point2; i < (int) father1.rule.size(); ++i) child1.rule.push_back(father1.rule[i]);
+
+		for (int i=0; i < point3; ++i) child2.rule.push_back(father2.rule[i]);
+		for (int i=point1; i < point2; ++i) child2.rule.push_back(father1.rule[i]);
+		for (int i=point4; i < (int) father2.rule.size(); ++i) child2.rule.push_back(father2.rule[i]);
 	}
 
-	for (int i=0; i < point1; ++i) child1.rule.push_back(father1.rule[i]);
-	for (int i=point3; i < point4; ++i) child1.rule.push_back(father2.rule[i]);
-	for (int i=point2; i < (int) father1.rule.size(); ++i) child1.rule.push_back(father1.rule[i]);
-
-	for (int i=0; i < point3; ++i) child2.rule.push_back(father2.rule[i]);
-	for (int i=point1; i < point2; ++i) child2.rule.push_back(father1.rule[i]);
-	for (int i=point4; i < (int) father2.rule.size(); ++i) child2.rule.push_back(father2.rule[i]);
+	// Control de longitud de reglas
+	//if (child1.rule.size() < RULE_SIZE) child1 = RandomCreate(RULE_SIZE);
+	//if (child2.rule.size() < RULE_SIZE) child2 = RandomCreate(RULE_SIZE);
 
 	children.push_back(child1);
 	children.push_back(child2);
@@ -936,34 +929,27 @@ vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2)
 	return children;
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Operador de Mutacion para Cromosomas
+********************************************************************/
+
 Chromosome Classifier::Mutate(Chromosome individual) {
-	int attribute;
 	int index = rand()%GENE_SIZE;
 	int gene = rand()%(individual.rule.size()/GENE_SIZE);
 
 	if (individual.rule[gene*GENE_SIZE+index] == 0) individual.rule[gene*GENE_SIZE+index] = 1;
-	else if (individual.rule[gene*GENE_SIZE+index] == 1) {
-		if (index >= 0 && index < 2) attribute = 0;
-		if (index >= 2 && index < 5) attribute = 1;
-		if (index >= 5 && index < 8) attribute = 2;
-		if (index >= 8 && index < 12) attribute = 3;
-		if (index >= 12 && index < 15) attribute = 4;
-		if (index >= 15 && index < 29) attribute = 5;
-		if (index >= 29 && index < 38) attribute = 6;
-		if (index >= 38 && index < 41) attribute = 7;
-		if (index >= 41 && index < 43) attribute = 8;
-		if (index >= 43 && index < 45) attribute = 9;
-		if (index >= 45 && index < 48) attribute = 10;
-		if (index >= 48 && index < 50) attribute = 11;
-		if (index >= 50 && index < 53) attribute = 12;
-		if (index >= 53 && index < 56) attribute = 13;
-		if (index >= 56 && index < 59) attribute = 14;
-
-		if (Valid(individual, attribute, gene*GENE_SIZE+index)) individual.rule[gene*GENE_SIZE+index] = 0;
-	}
+	else individual.rule[gene*GENE_SIZE+index] = 0;
 
 	return individual;
 }
+
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Operador de Agregacion de Alternativas para Cromosomas
+********************************************************************/
 
 Chromosome Classifier::AddAlternative(Chromosome individual) {
 	int index = rand()%ATTRIBUTES;
@@ -989,78 +975,84 @@ Chromosome Classifier::AddAlternative(Chromosome individual) {
 
 	// A4: u, y, l, t
 	if (index == 3) {
-		int alternative = (rand()%4)+8;
+		int alternative = (rand()%3)+8;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A5: g, p, gg
 	if (index == 4) {
-		int alternative = (rand()%3)+12;
+		int alternative = (rand()%3)+11;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
 	if (index == 5) {
-		int alternative = (rand()%14)+15;
+		int alternative = (rand()%14)+14;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A7: v, h, bb, j, n, z, dd, ff, o
 	if (index == 6) {
-		int alternative = (rand()%9)+29;
+		int alternative = (rand()%9)+28;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A8: Continuo
 	if (index == 7) {
-		int alternative = (rand()%3)+38;
+		int alternative = (rand()%3)+37;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A9: t, f
 	if (index == 8) {
-		int alternative = (rand()%2)+41;
+		int alternative = (rand()%2)+40;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A10: t, f
 	if (index == 9) {
-		int alternative = (rand()%2)+43;
+		int alternative = (rand()%2)+42;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A11: Continuo
 	if (index == 10) {
-		int alternative = (rand()%3)+45;
+		int alternative = (rand()%3)+44;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A12: t, f
 	if (index == 11) {
-		int alternative = (rand()%2)+48;
+		int alternative = (rand()%2)+47;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A13: g, p, s
 	if (index == 12) {
-		int alternative = (rand()%3)+50;
+		int alternative = (rand()%3)+49;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A14: Continuo
 	if (index == 13) {
-		int alternative = (rand()%3)+53;
+		int alternative = (rand()%3)+52;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	// A15: Continuo
 	if (index == 14) {
-		int alternative = (rand()%3)+56;
+		int alternative = (rand()%3)+55;
 		individual.rule[gene*GENE_SIZE+alternative] = 1;
 	}
 
 	return individual;
 }
+
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Operador de Generalizacion de Condiciones para Cromosomas
+********************************************************************/
 
 Chromosome Classifier::DropCondition(Chromosome individual) {
 	int index = rand()%ATTRIBUTES;
@@ -1083,449 +1075,109 @@ Chromosome Classifier::DropCondition(Chromosome individual) {
 
 	// A4: u, y, l, t
 	if (index == 3) {
-		for (int i=8; i < 12; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=8; i < 11; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A5: g, p, gg
 	if (index == 4) {
-		for (int i=12; i < 15; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=11; i < 14; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
 	if (index == 5) {
-		for (int i=15; i < 29; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=14; i < 28; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A7: v, h, bb, j, n, z, dd, ff, o
 	if (index == 6) {
-		for (int i=29; i < 38; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=28; i < 37; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A8: Continuo
 	if (index == 7) {
-		for (int i=38; i < 41; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=37; i < 40; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A9: t, f
 	if (index == 8) {
-		for (int i=41; i < 43; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=40; i < 42; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A10: t, f
 	if (index == 9) {
-		for (int i=43; i < 45; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=42; i < 44; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A11: Continuo
 	if (index == 10) {
-		for (int i=45; i < 48; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=44; i < 47; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A12: t, f
 	if (index == 11) {
-		for (int i=48; i < 50; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=47; i < 49; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A13: g, p, s
 	if (index == 12) {
-		for (int i=50; i < 53; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=49; i < 52; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A14: Continuo
 	if (index == 13) {
-		for (int i=53; i < 56; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=52; i < 55; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	// A15: Continuo
 	if (index == 14) {
-		for (int i=56; i < 59; i++) individual.rule[gene*GENE_SIZE+i] = 1;
+		for (int i=55; i < 58; i++) individual.rule[gene*GENE_SIZE+i] = 1;
 	}
 
 	return individual;
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Generador de Cromosomas Aleatorios
+********************************************************************/
+
 Chromosome Classifier::RandomCreate(int genes) {
-    Chromosome individual;
-	int chance = rand()%100;
+  Chromosome individual;
+  int count = 0;
 
-	if (chance <= RANDOM_RATE || genes <= 0) {
-		int index = rand()%SIZE;
-		return dataSet[index];
-	}
+	while (count < genes) {
+		/*
+		int indexPlus = rand()%positivesSet.size();
+		int indexMinus = rand()%negativesSet.size();
 
-	while (genes > 0) {
-		int i = 0;
+		for (int i=0; i < (int) negativesSet[indexMinus].rule.size(); i++)
+			individual.rule.push_back(negativesSet[indexMinus].rule[i]);
+		for (int i=0; i < (int) positivesSet[indexPlus].rule.size(); i++)
+			individual.rule.push_back(positivesSet[indexPlus].rule[i]);
 
-		while (i < (ATTRIBUTES + 1)) {
-			if (i < ATTRIBUTES) {
-				// A1: b, a
-				if (i == 0) {
-					bool added = false;
+		count += 2;
+		*/
+		int index = rand()%trainingSet.size();
 
-					for (int i=0; i < 2; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
+		for (int i=0; i < (int) trainingSet[index].rule.size(); i++)
+			individual.rule.push_back(trainingSet[index].rule[i]);
 
-					if (!added) {
-						for (int i=0; i < 2; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A2: Continuo
-				if (i == 1) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=2; i < 5; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A3: Continuo
-				if (i == 2) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=5; i < 8; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A4: u, y, l, t
-				if (i == 3) {
-					bool added = false;
-
-					for (int i=0; i < 4; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=8; i < 12; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A5: g, p, gg
-				if (i == 4) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=12; i < 15; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
-				if (i == 5) {
-					bool added = false;
-
-					for (int i=0; i < 14; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=15; i < 29; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A7: v, h, bb, j, n, z, dd, ff, o
-				if (i == 6) {
-					bool added = false;
-
-					for (int i=0; i < 9; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=29; i < 38; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A8: Continuo
-				if (i == 7) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=38; i < 41; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A9, A10, A12: t, f
-				if (i == 8 || i == 9 || i == 11) {
-					int p = rand()%100;
-					if (p >= 50) {
-						individual.rule.push_back(1);
-						individual.rule.push_back(0);
-					}
-					else {
-						individual.rule.push_back(0);
-						individual.rule.push_back(1);
-					}
-				}
-
-				// A11: Continuo
-				if (i == 10) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=45; i < 48; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A13: g, p, s
-				if (i == 12) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=50; i < 53; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A14: Continuo
-				if (i == 13) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=53; i < 56; i++) individual.rule[i] = 1;
-					}
-				}
-
-				// A15: Continuo
-				if (i == 14) {
-					bool added = false;
-
-					for (int i=0; i < 3; i++) {
-						int p = rand()%100;
-						if (p >= 50) {
-							added = true;
-							individual.rule.push_back(1);
-						}
-						else {
-							individual.rule.push_back(0);
-						}
-					}
-
-					if (!added) {
-						for (int i=56; i < 59; i++) individual.rule[i] = 1;
-					}
-				}
-			}
-			else {
-				int p = rand()%100;
-
-				if (p >= 50) individual.rule.push_back(1);
-				else individual.rule.push_back(0);
-			}
-
-			i++;
-		}
-
-		genes--;
+		count++;
 	}
 
 	individual.fitness = 0;
 	individual.survives = false;
-	individual.mutate = false;
 	individual.aa = false;
 	individual.dc = false;
 	return individual;
 }
 
-bool Classifier::Valid(Chromosome individual, int index, int pos) {
-	individual.rule[pos] = 0;
+//----------------------------------------------------------------
 
-	// A1: b, a
-	if (index == 0) {
-		for (int i=0; i < 2; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A2: Continuo
-	if (index == 1) {
-		for (int i=2; i < 5; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A3: Continuo
-	if (index == 2) {
-		for (int i=5; i < 8; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A4: u, y, l, t
-	if (index == 3) {
-		for (int i=8; i < 12; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A5: g, p, gg
-	if (index == 4) {
-		for (int i=12; i < 15; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A6: c, d, cc, i, j, k, m, r, q, w, x, e, aa, ff
-	if (index == 5) {
-		for (int i=15; i < 29; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A7: v, h, bb, j, n, z, dd, ff, o
-	if (index == 6) {
-		for (int i=29; i < 38; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A8: Continuo
-	if (index == 7) {
-		for (int i=38; i < 41; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A9: t, f
-	if (index == 8) {
-		for (int i=41; i < 43; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A10: t, f
-	if (index == 9) {
-		for (int i=43; i < 45; i++) if (individual.rule[i] == 1) return true;
-	}
-
-	// A11: Continuo
-	if (index == 10) {
-		for (int i=45; i < 48; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A12: t, f
-	if (index == 11) {
-		for (int i=48; i < 50; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A13: g, p, s
-	if (index == 12) {
-		for (int i=50; i < 53; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A14: Continuo
-	if (index == 13) {
-		for (int i=53; i < 56; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	// A15: Continuo
-	if (index == 14) {
-		for (int i=56; i < 59; i++)
-			if (individual.rule[i] == 1) return true;
-	}
-
-	return false;
-}
+/*******************************************************************
+* Actualizacion de Estadisticos
+********************************************************************/
 
 void Classifier::UpdateStatistics(string &line) {
 	char* cstr = new char[line.size()+1];
@@ -1703,6 +1355,12 @@ void Classifier::UpdateStatistics(string &line) {
 	}
 }
 
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Lectura de Instancias del Archivo
+********************************************************************/
+
 void Classifier::ProcessLine(string &line) {
     Chromosome individual;
 	char* cstr = new char[line.size()+1];
@@ -1791,26 +1449,26 @@ void Classifier::ProcessLine(string &line) {
 
 			// A4: u, y, l, t
 			if (i == 3) {
-				// [1,0,0,0]
+				// [1,0,0]
 				if (strcmp(t,"u") == 0) {
 					individual.rule.push_back(1);
 					individual.rule.push_back(0);
 					individual.rule.push_back(0);
-					individual.rule.push_back(0);
+					//individual.rule.push_back(0);
 				}
-				// [0,1,0,0]
+				// [0,1,0]
 				else if (strcmp(t,"y") == 0) {
 					individual.rule.push_back(0);
 					individual.rule.push_back(1);
 					individual.rule.push_back(0);
-					individual.rule.push_back(0);
+					//individual.rule.push_back(0);
 				}
-				// [0,0,1,0]
+				// [0,0,1]
 				else if (strcmp(t,"l") == 0) {
 					individual.rule.push_back(0);
 					individual.rule.push_back(0);
 					individual.rule.push_back(1);
-					individual.rule.push_back(0);
+					//individual.rule.push_back(0);
 				}
 				// [0,0,0,1]
 				else if (strcmp(t,"t") == 0) {
@@ -1826,12 +1484,10 @@ void Classifier::ProcessLine(string &line) {
 						individual.rule.push_back(1);
 						individual.rule.push_back(0);
 						individual.rule.push_back(0);
-						individual.rule.push_back(0);
 					}
 					else if (max == 1) {
 						individual.rule.push_back(0);
 						individual.rule.push_back(1);
-						individual.rule.push_back(0);
 						individual.rule.push_back(0);
 					}
 					else if (max == 2) {
@@ -2252,7 +1908,6 @@ void Classifier::ProcessLine(string &line) {
 				}
 			}
 
-
 			// A13: g, p, s
 			if (i == 12) {
 				// [1,0,0]
@@ -2320,11 +1975,11 @@ void Classifier::ProcessLine(string &line) {
 		else {
 			if (strcmp(t,"+") == 0) {
 				individual.rule.push_back(1);
-				positives++;
+				positivesSet.push_back(individual);
 			}
 			else {
 				individual.rule.push_back(0);
-				negatives++;
+				negativesSet.push_back(individual);
 			}
 		}
 
@@ -2345,6 +2000,12 @@ void Classifier::ProcessLine(string &line) {
 
 	dataSet.push_back(individual);
 }
+
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Calculo de Frecuencia Maxima para Atributos
+********************************************************************/
 
 int Classifier::MaxFrequency(int index) {
 	if (index == 1) {
