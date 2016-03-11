@@ -24,11 +24,11 @@
 #define ATTRIBUTES 15
 #define POPULATION 100
 #define GENERATIONS 1000
-#define RULE_SIZE 5
+#define RULE_SIZE 2
 #define RULE_THRESHOLD 100
 #define THRESHOLD 99
-#define RANDOM_RATE 55
-#define CROSSOVER_RATE 0.6
+#define WORST 0.15
+#define CROSSOVER_RATE 0.2
 #define MUTATION_RATE 0.1
 #define AA_RATE 0.05
 #define DC_RATE 0.6
@@ -66,11 +66,13 @@ class Classifier {
 		vector<Chromosome> trainingSet;
 		vector<Chromosome> testSet;
 		vector<Chromosome> children;
-		vector<Chromosome> survivors;
 		int best;
 		double maxScore;
 		double accuracy;
 		double rules;
+		bool penalty;
+		bool tournament;
+		bool worst;
 
 		// Datos estadisticos
 		double min2;
@@ -118,6 +120,7 @@ class Classifier {
 
 		Classifier(const char* filename);
 		~Classifier();
+		void Configure(bool selection, bool replacement);
 		void Preprocessing(const char *filename);
 		int ReadFile(const char* filename);
 		int GetSize() { return size; }

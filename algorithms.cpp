@@ -121,6 +121,17 @@ Classifier::~Classifier() {}
 //----------------------------------------------------------------
 
 /*******************************************************************
+* Configuracion de seleccion, reemplazo y uso de penalizacion
+********************************************************************/
+
+void Classifier::Configure(bool selection, bool replacement) {
+	tournament = selection;
+	worst = replacement;
+}
+
+//----------------------------------------------------------------
+
+/*******************************************************************
 * Preprocesamiento
 ********************************************************************/
 
@@ -242,6 +253,12 @@ void Classifier::GA() {
 	cout << "       ALGORITMO GENETICO          " << endl;
 	cout << "-----------------------------------" << endl;
 
+	if (tournament) cout << "Selección por torneo, t = " << TOURNAMENT_SIZE << endl;
+	else cout << "Selección por rueda de la ruleta" << endl;
+
+	if (worst) cout << "Reemplazo de peores encontrados en 15% de la población" << endl;
+	else cout << "Reemplazo directo de los padres" << endl;
+
 	accuracy = -1.0;
 	best = -1;
 
@@ -300,9 +317,7 @@ void Classifier::GA() {
 
 	// Condicion de parada (generaciones)
 	while (count < GENERATIONS) {
-		cout << count << endl;
 		// Elitismo
-//		int survivors = 1;
 		crossed = 0;
 		hypothesis[best].survives = true;
 		hypothesis[best].aa = false;
@@ -313,31 +328,7 @@ void Classifier::GA() {
 			int first = -1;
 			int second = -1;
 
-			for (int i=0; i < 2; i++) {
-				///*
-				// Seleccion por rueda de la ruleta
-				double chance = 0.0;
-				double portion = 0.0;
-				int index = 0;
-
-				if (sum > 0.0) {
-					double limit = (rand()%(int) sum)/sum;
-
-					while (chance < limit) {
-						if (index >= POPULATION) index = 0;
-						portion = hypothesis[index].fitness/sum;
-						if (portion <= 0.1) portion = 0.1;
-						chance += portion;
-						if (chance >= limit && i == 0) first = index;
-						if (chance >= limit && i == 1) second = index;
-						index++;
-					}
-				}
-				else {
-					first = rand()%POPULATION;
-					second = rand()%POPULATION;
-				}
-				/*
+			if (tournament) {
 				// Seleccion por torneo
 				double max = -1.0;
 				int times = (rand()%TOURNAMENT_SIZE)+2;
@@ -345,28 +336,53 @@ void Classifier::GA() {
 				for (int k=0; k < times; k++) {
 					int option = rand()%POPULATION;
 
-					if (hypothesis[option].fitness > max && i == 0) first = option;
-					if (hypothesis[option].fitness > max && i == 1) second = option;
+					if (hypothesis[option].fitness > max) first = option;
 				}
-				*/
+
+				second = rand()%POPULATION;
+			}
+			else {
+				// Seleccion por rueda de la ruleta
+				double chance = 0.0;
+				double portion = 0.0;
+				int index = 0;
+
+				if (sum > 0.01) {
+					double limit = (rand()%(int) sum)/sum;
+					//cout << limit << endl;
+
+					while (chance < limit) {
+						if (index >= POPULATION) index = 0;
+						portion = hypothesis[index].fitness/sum;
+						if (portion <= 0.1) portion = 0.1;
+						chance += portion;
+						if (chance >= limit) first = index;
+						index++;
+					}
+
+					if (first < 0) first = rand()%POPULATION;
+
+					second = rand()%POPULATION;
+				}
+				else {
+					first = rand()%POPULATION;
+					second = rand()%POPULATION;
+				}
 			}
 
 			while (first == second) second = rand()%POPULATION;
 
-			child1 = hypothesis[first];
-			child2 = hypothesis[second];
-
-			children = CrossOver(child1, child2);
+			children.clear();
+			children = CrossOver(hypothesis[first], hypothesis[second]);
 
 			// Control sobre el numero de reglas
 			int rules1 = children[0].rule.size()/GENE_SIZE;
 
-			//if (rules1 > RULE_THRESHOLD) children[0] = RandomCreate(RULE_SIZE);
+			if (rules1 > RULE_THRESHOLD) children[0] = RandomCreate(RULE_SIZE);
 
 			int rules2 = children[1].rule.size()/GENE_SIZE;
-			crossed += 2;
 
-			//if (rules2 > RULE_THRESHOLD) children[1] = RandomCreate(RULE_SIZE);
+			if (rules2 > RULE_THRESHOLD) children[1] = RandomCreate(RULE_SIZE);
 
 			// Mutacion
 			double probMutation1 = (rand()%100)/100.00;
@@ -384,11 +400,63 @@ void Classifier::GA() {
 			if (hypothesis[first].dc) children[0] = DropCondition(children[0]);
 			if (hypothesis[second].dc) children[1] = DropCondition(children[1]);
 
-			// Reemplazo directo de padres
-			if (!hypothesis[first].survives) hypothesis[first] = children[0];
-			if (!hypothesis[second].survives) hypothesis[second] = children[1];
+			if (worst) {
+				// Reemplazo de peores
+				int survivors = POPULATION*WORST;
 
-			// Reemplazo de peores
+				int pos = rand()%POPULATION;
+				double min = hypothesis[pos].fitness;
+				int last = pos;
+				int almost = -1;
+
+				pos++;
+
+				if (pos >= POPULATION) pos = 0;
+
+				double next = hypothesis[pos].fitness;
+				almost = pos;
+				pos++;
+				survivors -= 2;
+
+				if (next < min) {
+					double aux = min;
+					int temp = last;
+					min = next;
+					last = almost;
+					next = aux;
+					almost = temp;
+				}
+
+				while (survivors > 0) {
+					if (pos >= POPULATION) pos = 0;
+
+					if (hypothesis[pos].fitness < min) {
+						next = min;
+						almost = last;
+						min = hypothesis[pos].fitness;
+						last = pos;
+					}
+					else {
+						if (hypothesis[pos].fitness < next) {
+							next = hypothesis[pos].fitness;
+							almost = pos;
+						}
+					}
+
+					pos++;
+					survivors--;
+				}
+
+				if (!hypothesis[last].survives) hypothesis[almost] = children[0];
+				if (!hypothesis[almost].survives) hypothesis[almost] = children[1];
+			}
+			else {
+				// Reemplazo directo de padres
+				if (!hypothesis[first].survives) hypothesis[first] = children[0];
+				if (!hypothesis[second].survives) hypothesis[second] = children[1];
+			}
+
+			crossed += 2;
 		}
 
 		// Evaluacion

@@ -16,16 +16,111 @@ int main(int argc, char * argv[]) {
   time_t start,end;
   double answer;
   int size;
+  bool tournament = false;
+  bool rouletteWheel = false;
+  bool replaceFather = false;
+  bool replaceWorst = false;
+  bool penalty = false;
+  bool fileFlag = false;
+  int file = -1;
 
-  if (argc < 2) {
+  if (argc < 3) {
     cout << "Error: Faltan argumentos..." << endl;
-    cout << "Uso: ./GA <archivo>" << endl;
-    exit(1);
+    cout << "Uso: ./GA <opciones> -f <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
   }
 
+  for (int i = 0; i < argc; i++) {
+    if (strcmp(argv[i],"-st") == 0) tournament = true;
+    else if (strcmp(argv[i],"-sr") == 0) rouletteWheel = true;
+    else if (strcmp(argv[i],"-rd") == 0) replaceFather = true;
+    else if (strcmp(argv[i],"-rp") == 0) replaceWorst = true;
+    else if (strcmp(argv[i],"--p") == 0) penalty = true;
+    else if (strcmp(argv[i],"-f") == 0) {
+      file = i+1;
+      fileFlag = true;
+    }
+  }
+
+  if (!tournament && !rouletteWheel) {
+    cout << "Error: Debe seleccionar el método de selección para el clasificador" << endl;
+    cout << "Uso: ./GA <opciones> <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
+  }
+
+  if (tournament && rouletteWheel) {
+    cout << "Error: Debe seleccionar solo un método de selección para el clasificador" << endl;
+    cout << "Uso: ./GA <opciones> <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
+  }
+
+  if (!replaceFather && !replaceWorst) {
+    cout << "Error: Debe seleccionar el método de reemplazo para el clasificador" << endl;
+    cout << "Uso: ./GA <opciones> <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
+  }
+
+  if (replaceFather && replaceWorst) {
+    cout << "Error: Debe seleccionar solo un método de reemplazo para el clasificador" << endl;
+    cout << "Uso: ./GA <opciones> <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
+  }
+
+  if (!fileFlag) {
+    cout << "Error: Debe indicar un archivo" << endl;
+    cout << "Uso: ./GA <opciones> <archivo>" << endl;
+    cout << "donde las opciones pueden ser: " << endl;
+    cout << " -st  Selección por torneo" << endl;
+    cout << " -sr  Selección por rueda de la ruleta" << endl;
+    cout << " -rd  Reemplazo directo de los padres" << endl;
+    cout << " -rp  Reemplazo de los peores estocástico (10% de la población)" << endl;
+    cout << " --p  Penalización sobre la longitud de las reglas" << endl;
+    return -1;
+  }
+
+  if (!ifstream(argv[file]).good()) {
+    cout << "Error: El archivo seleccionado no pudo abrirse" << endl;
+    return -1;
+  };
+
   srand(time(0));
-  Classifier problem(argv[1]);
+  Classifier problem(argv[file]);
   size = problem.GetSize();
+
+  if (tournament && replaceWorst) problem.Configure(true, true);
+  else if (tournament && replaceFather) problem.Configure(true, false);
+  else if (rouletteWheel && replaceWorst) problem.Configure(false, true);
+  else if (rouletteWheel && replaceFather) problem.Configure(false, false);
 
   if (size == -1) exit(1);
 
@@ -34,47 +129,6 @@ int main(int argc, char * argv[]) {
   time (&start);
   problem.GA();
   time (&end);
-
-  /*
-  Chromosome individual = problem.RandomCreate(rand()%4);
-  Chromosome individual2 = problem.RandomCreate(rand()%4);
-
-  for (int i=0; i < individual.rule.size(); i++) {
-    cout << individual.rule[i] << ", ";
-  }
-
-  cout << endl;
-  cout << individual.rule.size() << " ";
-  cout << endl;
-
-  for (int i=0; i < individual2.rule.size(); i++) {
-    cout << individual2.rule[i] << ", ";
-  }
-
-  cout << endl;
-  cout << individual2.rule.size() << " ";
-  cout << endl;
-
-  vector<Chromosome> children = problem.CrossOver(individual,individual2);
-
-  cout<<children.size() << endl;
-
-  for (int i=0; i < children[0].rule.size(); i++) {
-    cout << children[0].rule[i] << ", ";
-  }
-
-  cout << endl;
-  cout << children[0].rule.size() << " ";
-  cout << endl;
-
-  for (int i=0; i < children[1].rule.size(); i++) {
-    cout << children[1].rule[i] << ", ";
-  }
-
-  cout << endl;
-  cout << children[1].rule.size() << " ";
-  cout << endl;
-  */
 
   answer = difftime (end,start);
   cout.precision(2);
