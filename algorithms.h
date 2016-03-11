@@ -28,13 +28,14 @@
 #define RULE_THRESHOLD 100
 #define THRESHOLD 99
 #define WORST 0.15
-#define CROSSOVER_RATE 0.2
+#define CROSSOVER_RATE 0.6
 #define MUTATION_RATE 0.1
 #define AA_RATE 0.05
 #define DC_RATE 0.6
 #define TOURNAMENT_SIZE 2
 #define TRAINING_SIZE 0.7
 #define TEST_SIZE 0.3
+#define PENALTY_RATE 10
 
 using namespace std;
 
@@ -121,6 +122,7 @@ class Classifier {
 		Classifier(const char* filename);
 		~Classifier();
 		void Configure(bool selection, bool replacement);
+		void UsePenalty(bool choise);
 		void Preprocessing(const char *filename);
 		int ReadFile(const char* filename);
 		int GetSize() { return size; }

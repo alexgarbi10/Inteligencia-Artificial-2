@@ -121,12 +121,22 @@ Classifier::~Classifier() {}
 //----------------------------------------------------------------
 
 /*******************************************************************
-* Configuracion de seleccion, reemplazo y uso de penalizacion
+* Configuracion de seleccion y reemplazo
 ********************************************************************/
 
 void Classifier::Configure(bool selection, bool replacement) {
 	tournament = selection;
 	worst = replacement;
+}
+
+//----------------------------------------------------------------
+
+/*******************************************************************
+* Configuracion de uso de penalizacion
+********************************************************************/
+
+void Classifier::UsePenalty(bool choise) {
+	penalty = choise;
 }
 
 //----------------------------------------------------------------
@@ -259,6 +269,8 @@ void Classifier::GA() {
 	if (worst) cout << "Reemplazo de peores encontrados en 15% de la población" << endl;
 	else cout << "Reemplazo directo de los padres" << endl;
 
+	if (penalty) cout << "Penalización sobre la longitud de las reglas" << endl;
+
 	accuracy = -1.0;
 	best = -1;
 
@@ -286,13 +298,26 @@ void Classifier::GA() {
 		total = Fitness(hypothesis[i], trainingSet);
 
 		if (total == 0.0) {
-//			int genes = (rand()%10)+2;
 			hypothesis[i] = RandomCreate(RULE_SIZE);
 			total = Fitness(hypothesis[i], trainingSet);
 		}
 
 		result = (total/(double) trainingSet.size())*100;
-		hypothesis[i].fitness = pow(total,2);
+
+		// Penalizacion por longitud
+		if (penalty) {
+			int number = hypothesis[i].rule.size()*PENALTY_RATE;
+
+			if (number == 1) hypothesis[i].fitness = pow(total,2);
+			else {
+				if (number >= pow(total,2)) hypothesis[i].fitness = 0.0;
+				else hypothesis[i].fitness = pow(total,2) - number;
+			}
+		}
+		else {
+			hypothesis[i].fitness = pow(total,2);
+		}
+
 		hypothesis[i].survives = false;
 		sum += hypothesis[i].fitness;
 
@@ -475,7 +500,20 @@ void Classifier::GA() {
 			}
 
 			result = (total/(double) trainingSet.size())*100;
-			hypothesis[i].fitness = pow(total,2);
+
+			// Penalizacion por longitud
+			if (penalty) {
+				int number = hypothesis[i].rule.size()*PENALTY_RATE;
+
+				if (number == 1) hypothesis[i].fitness = pow(total,2);
+				else {
+					if (number >= pow(total,2)) hypothesis[i].fitness = 0.0;
+					else hypothesis[i].fitness = pow(total,2) - number;
+				}
+			}
+			else {
+				hypothesis[i].fitness = pow(total,2);
+			}
 
 			if (probAA <= AA_RATE) hypothesis[i].aa = true;
 			else hypothesis[i].aa = false;
@@ -492,20 +530,6 @@ void Classifier::GA() {
 				maxScore = total;
 			}
 		}
-
-		/*
-		cout << "ITERACION " << count << endl;
-		for (int i=0; i< POPULATION; i++) {
-		cout << "Cromosoma: " << i << endl;
-		for (int j=0; j < hypothesis[i].rule.size(); j++) {
-			cout << hypothesis[i].rule[j] << ", ";
-		}
-
-		cout << endl;
-		cout << hypothesis[i].rule.size() << " ";
-		cout << hypothesis[i].fitness << " ";
-		cout << endl;
-		}*/
 
 		count++;
 	}
@@ -529,32 +553,77 @@ void Classifier::GA() {
 
 /*
 	int i = best;
-	cout << "Cromosoma BEST: " << i << endl;
-
-	for (int j=0; j < hypothesis[i].rule.size(); j++) {
-		int gen = j%GENE_SIZE;
-		cout << hypothesis[i].rule[j] << ", ";
-	}
-
-	cout << endl;
-	cout << hypothesis[i].rule.size() << " ";
-	cout << hypothesis[i].fitness << " ";
-	cout << endl;
-
-	for (int i=0; i< POPULATION; i++) {
+	int genes = 0;
 	cout << "Cromosoma: " << i << endl;
-	for (int j=0; j < hypothesis[i].rule.size(); j++) {
-		int gen = j%(GENE_SIZE-1);
-		cout << hypothesis[i].rule[j] << ", ";
-				if (j == 58) cout << "ASJAHS::";
-	}
 
-	cout << endl;
-	cout << hypothesis[i].rule.size() << " ";
-	cout << hypothesis[i].fitness << " ";
-	cout << endl;
+	while (genes < rules) {
+		cout << "A1: ";
+		for (int j=0; j < 2; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A2: ";
+		for (int j=2; j < 5; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A3: ";
+		for (int j=5; j < 8; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A4: ";
+		for (int j=8; j < 11; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A5: ";
+		for (int j=11; j < 14; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A6: ";
+		for (int j=14; j < 28; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A7: ";
+		for (int j=28; j < 37; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A8: ";
+		for (int j=37; j < 40; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A9: ";
+		for (int j=40; j < 42; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A10: ";
+		for (int j=42; j < 44; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A11: ";
+		for (int j=44; j < 47; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A12: ";
+		for (int j=47; j < 49; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A13: ";
+		for (int j=49; j < 52; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A14: ";
+		for (int j=52; j < 55; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "A15: ";
+		for (int j=55; j < 58; j++) cout << hypothesis[i].rule[j+genes*GENE_SIZE];
+		cout << endl;
+
+		cout << "Clase: ";
+		cout << hypothesis[i].rule[58+genes*GENE_SIZE];
+		cout << endl;
+
+		genes++;
 	}
-	*/
+*/
 
 	cout << "Proceso evolutivo finalizado" << endl;
 	cout << "Generaciones: " << GENERATIONS << endl;
@@ -987,10 +1056,6 @@ vector<Chromosome> Classifier::CrossOver(Chromosome father1, Chromosome father2)
 		for (int i=point4; i < (int) father2.rule.size(); ++i) child2.rule.push_back(father2.rule[i]);
 	}
 
-	// Control de longitud de reglas
-	//if (child1.rule.size() < RULE_SIZE) child1 = RandomCreate(RULE_SIZE);
-	//if (child2.rule.size() < RULE_SIZE) child2 = RandomCreate(RULE_SIZE);
-
 	children.push_back(child1);
 	children.push_back(child2);
 
@@ -1215,17 +1280,6 @@ Chromosome Classifier::RandomCreate(int genes) {
   int count = 0;
 
 	while (count < genes) {
-		/*
-		int indexPlus = rand()%positivesSet.size();
-		int indexMinus = rand()%negativesSet.size();
-
-		for (int i=0; i < (int) negativesSet[indexMinus].rule.size(); i++)
-			individual.rule.push_back(negativesSet[indexMinus].rule[i]);
-		for (int i=0; i < (int) positivesSet[indexPlus].rule.size(); i++)
-			individual.rule.push_back(positivesSet[indexPlus].rule[i]);
-
-		count += 2;
-		*/
 		int index = rand()%trainingSet.size();
 
 		for (int i=0; i < (int) trainingSet[index].rule.size(); i++)

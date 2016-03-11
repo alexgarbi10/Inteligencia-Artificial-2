@@ -122,6 +122,9 @@ int main(int argc, char * argv[]) {
   else if (rouletteWheel && replaceWorst) problem.Configure(false, true);
   else if (rouletteWheel && replaceFather) problem.Configure(false, false);
 
+  if (penalty) problem.UsePenalty(true);
+  else problem.UsePenalty(false);
+
   if (size == -1) exit(1);
 
   if (size != SIZE) exit(1);
